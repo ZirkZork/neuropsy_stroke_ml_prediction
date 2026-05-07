@@ -20,11 +20,14 @@ filepath_dict = {
     "output_folder": "dir"
 }
 
+
 filepath_dict = ui.data_choose_file_paths(filepath_dict)
 
 # load settings
 settings_path = filepath_dict["settings"]
 settings = seth.load_settings(settings_path)
+
+analysis_tag = settings["cfg_tag"]
 
 variables = settings["variables"]
 variable_names = [var["name"].replace(" ", "_") for var in variables]
@@ -106,6 +109,17 @@ for var in variables:
 subject_id_variable = settings["variable_selection"]["sample_id"]
 prediction_target_variable = settings["variable_selection"]["prediction_target"]
 
+prediction_variable = [var for var in settings["variables"] if var ["name"] == prediction_target_variable].pop()
+prediction_type = prediction_variable["type"]
+if prediction_type not in ["int", "flow", "cat"]:
+    raise Exception("Prediction target needs to be number or category.")
+
+prediction_positive_category = None
+
+if prediction_type == "cat" and len(prediction_variable["options"])==2:
+    prediction_type = "cat_binary"
+    prediction_positive_category = ui.data_choose_positive_category_ui(prediction_variable["options"])
+
 lesion_map_settings = settings["lesionmap_processing"]
 lesion_map_folder = filepath_dict["lesion_map_folder"]
 lesion_maps, map_dimensions, map_affine, found_map_ids = lops.load_lesion_maps(list(combined_data_frame[subject_id_variable]), lesion_map_folder, lesion_map_settings["slice_spacing"], lesion_map_settings["slice_offset"])
@@ -174,26 +188,51 @@ lesion_mostly_in_mask = combined_data_frame.loc[included_rows, "lesion_in_mask_p
 combined_data_frame.loc[included_rows, "lesion_mostly_in_mask"] = lesion_mostly_in_mask
 
 # save output
+output_directory = os.path.join(filepath_dict["output_folder"], f"{analysis_tag}_LSM_prediction")
+if not os.path.isdir(output_directory):
+    os.makedirs(output_directory)
 
-output_folder = filepath_dict["output_folder"]
+run_directory = os.path.join(output_directory, "runs")
+if not os.path.isdir(run_directory):
+    os.makedirs(run_directory)
+
+sub_run_directory = os.path.join(run_directory, f"{analysis_tag}_initial_run")
+if not os.path.isdir(sub_run_directory):
+    os.makedirs(sub_run_directory)
+
+# save a copy of the settings
+seth.save_settings(settings, os.path.join(output_directory, f"{analysis_tag}_settings.cfg"))
 
 # save final data table to excelfile
-
-combined_data_frame.to_excel(os.path.join(output_folder, "processed_data_set.xlsx"), index=False)
+combined_data_frame.to_excel(os.path.join(output_directory, "processed_data_set.xlsx"), index=False)
 
 # save lesion mask as nifti
-
-lops.save_as_nifti (voxel_mask.astype(float), map_affine, os.path.join(output_folder, "lesion_overlap_voxel_mask.nii"))
+lops.save_as_nifti (voxel_mask.astype(float), map_affine, os.path.join(output_directory, "lesion_overlap_voxel_mask.nii"))
     
 # save training features and targets
 
-training_feature_vecotrs = included_lesion_maps[:, voxel_mask]
-training_targets = np.asarray(combined_data_frame.loc[included_rows, prediction_target_variable])
+training_feature_vecotrs = included_lesion_maps[lesion_mostly_in_mask][:, voxel_mask]
+training_targets = np.asarray(combined_data_frame.query("lesion_mostly_in_mask == True")[prediction_target_variable])
 
 training_setup = {
+    "analysis_tag": analysis_tag,
+    "rng_seed": settings["rng_seed"],
     "features": training_feature_vecotrs,
-    "targets": training_targets
+    "targets": training_targets,
+    "prediction_type": prediction_type,
+    "prediction_positive_category": prediction_positive_category,
+    "parameters": settings["training_parameters"],
 }
 
-with open(os.path.join(output_folder, "training_data_setup.pkl"), "wb") as f:
+permutation_setup =  {
+    "analysis_tag": analysis_tag,
+    "rng_seed": settings["rng_seed"],
+    "n_permutations": settings["training_parameters"]["n_permutations"],
+    "n_samples": len(training_targets),
+}
+
+
+with open(os.path.join(sub_run_directory, f"{analysis_tag}_training_data_setup.pkl"), "wb") as f:
     pkl.dump(training_setup, f)
+with open(os.path.join(run_directory, f"{analysis_tag}_permutation_setup.pkl"), "wb") as f:
+    pkl.dump(permutation_setup, f)
