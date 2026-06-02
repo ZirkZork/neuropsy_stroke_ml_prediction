@@ -10,14 +10,14 @@ import numpy as np
 from tkinter.filedialog import askopenfilename, askdirectory
 from tkinter.simpledialog import askinteger
 
-permutation_setup_file_name = askopenfilename()
-with open(permutation_setup_file_name, "rb") as f:
+setup_file_name = askopenfilename()
+with open(setup_file_name, "rb") as f:
     permutation_setup = pkl.load(f)
 
 analysis_tag = permutation_setup["analysis_tag"]
 
 n_permutations = permutation_setup["n_permutations"]
-n_samples = permutation_setup["n_samples"]
+n_samples = len(permutation_setup["targets"])
 
 n_splits = askinteger("How many fractions?", "Into how many fractions should the permutations be split into?")
 
@@ -25,10 +25,10 @@ random_number_seed = permutation_setup["rng_seed"]
 random_generator = np.random.default_rng(random_number_seed)
 permutations_indices = random_generator.permuted (np.arange(n_samples).reshape((1,-1)).repeat(n_permutations, axis=0), axis=1)
 
-fraction_lengths = -(permutations_indices.shape[0] // - n_splits)
+fraction_lengths = - (permutations_indices.shape[0] // - n_splits)
 print(f"Splitting the permutation list into {n_splits} fractions with up to {fraction_lengths} permutations.")
 
-output_folder = os.path.join(os.path.dirname(permutation_setup_file_name), "data_permutation_splits")
+output_folder = os.path.join(os.path.dirname(setup_file_name), "data_permutation_splits")
 if not os.path.isdir(output_folder):
     os.makedirs(output_folder)
 

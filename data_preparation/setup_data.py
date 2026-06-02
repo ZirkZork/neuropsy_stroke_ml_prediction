@@ -6,7 +6,7 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from utility_functions import settings_handler as seth
-from utility_functions import UI_windows as ui
+from utility_functions import UI_windows as uiiai
 from utility_functions import lesion_operations as lops
 import numpy as np
 import pandas as pd
@@ -21,7 +21,7 @@ filepath_dict = {
 }
 
 
-filepath_dict = ui.data_choose_file_paths(filepath_dict)
+filepath_dict = uiiai.data_choose_file_paths(filepath_dict)
 
 # load settings
 settings_path = filepath_dict["settings"]
@@ -34,28 +34,37 @@ variable_names = [var["name"].replace(" ", "_") for var in variables]
 
 # get data from excel sheets
 data_input_files = filepath_dict["data_files"].split("; ")
+combine_datasets = True
 
-combined_data_frame = pd.DataFrame(columns=variable_names)
+if(len(data_input_files) == 1):
+    single_data_file_frame = pd.read_excel(data_input_files.pop())
+    if np.all([var in single_data_file_frame.columns for var in variable_names]):
+        combine_datasets = False
+        combined_data_frame = single_data_file_frame
 
-# select and map columns from the xcel sheets
-for filepath in data_input_files:
 
-    excel_frame = pd.read_excel(filepath)
+if(combine_datasets):
+    combined_data_frame = pd.DataFrame(columns=variable_names)
 
-    # select correct columns and empty values
-    column_mapping, empty_value_mapping = ui.data_variable_matching(variable_names, excel_frame)
+    # select and map columns from the xcel sheets
+    for filepath in data_input_files:
 
-    empty_columns = [key for key, column in column_mapping.items() if column == "NA"]
-    for column in empty_columns:
-        column_mapping.pop(column)
-    corresponding_columns = [column_mapping[column] for column in variable_names if column in column_mapping.keys()]
-    stripped_excel_frame = excel_frame.loc[:, corresponding_columns]
-    stripped_excel_frame.columns = [column for column in variable_names if column not in empty_columns]
+        excel_frame = pd.read_excel(filepath)
 
-    stripped_excel_frame.replace(empty_value_mapping, pd.NA, inplace=True)
+        # select correct columns and empty values
+        column_mapping, empty_value_mapping = uiiai.data_variable_matching(variable_names, excel_frame)
 
-    combined_data_frame = pd.concat([combined_data_frame, stripped_excel_frame])
-                                                                                                                                                                                                                                                                                                                                              
+        empty_columns = [key for key, column in column_mapping.items() if column == "NA"]
+        for column in empty_columns:
+            column_mapping.pop(column)
+        corresponding_columns = [column_mapping[column] for column in variable_names if column in column_mapping.keys()]
+        stripped_excel_frame = excel_frame.loc[:, corresponding_columns]
+        stripped_excel_frame.columns = [column for column in variable_names if column not in empty_columns]
+
+        stripped_excel_frame.replace(empty_value_mapping, pd.NA, inplace=True)
+
+        combined_data_frame = pd.concat([combined_data_frame, stripped_excel_frame])
+   
 
 # remap variable values
 for var in variables:
@@ -66,7 +75,9 @@ for var in variables:
         found_categories = list(np.unique(combined_data_frame[column_name].dropna()))
         if len (found_categories) == 0:
             continue
-        remapping = ui.data_remap_categorical_variables(var["name"], found_categories, var["options"])
+        if np.all([cat in var["options"] for cat in found_categories]):
+            continue
+        remapping = uiiai.data_remap_categorical_variables(var["name"], found_categories, var["options"])
         combined_data_frame = combined_data_frame.replace({column_name: remapping})
     # convert dates to date format
     elif var["type"] == "date":
@@ -77,6 +88,9 @@ for var in variables:
     column_name = var["name"].replace(" ", "_")
     if "formular" in var:
         missing_rows = combined_data_frame[column_name].isna()
+        if missing_rows.sum() == 0: 
+            continue
+
         formular = var["formular"]
 
         # select categories from numerical values
@@ -104,6 +118,10 @@ for var in variables:
 
             combined_data_frame.loc[missing_rows, column_name] = fill_in_values
 
+if(combine_datasets):
+    # save combined data table to excelfile
+    combined_data_frame.to_excel(os.path.join(filepath_dict["output_folder"], "combined_data_set.xlsx"), index=False)
+
 # load and process lesion maps
 
 subject_id_variable = settings["variable_selection"]["sample_id"]
@@ -118,7 +136,9 @@ prediction_positive_category = None
 
 if prediction_type == "cat" and len(prediction_variable["options"])==2:
     prediction_type = "cat_binary"
-    prediction_positive_category = ui.data_choose_positive_category_ui(prediction_variable["options"])
+    prediction_positive_category = uiiai.data_choose_positive_category_ui(prediction_variable["options"])
+if prediction_type in ["int", "float"]:
+    prediction_type = "num"
 
 lesion_map_settings = settings["lesionmap_processing"]
 lesion_map_folder = filepath_dict["lesion_map_folder"]
@@ -133,7 +153,6 @@ combined_data_frame.loc[mapped_rows, "map_found"] = True
 
 combined_data_frame.loc[mapped_rows, "lesion_size"] = lesion_sizes
 
-
 # set inclusion criteria and filter data 
 
 filter_variables = settings["variable_selection"]["filter_variables"]
@@ -142,6 +161,15 @@ missing_values_excluded_rows = [combined_data_frame[subject_id_variable].isna(),
 filter_excluded_rows = []
 
 for filter in filter_variables:
+    if np.any([keyword in filter for keyword in ["median", "mean", "quartile"]]):
+        eval_var = [column for column in combined_data_frame.columns if column in filter].pop()
+
+        filter = filter.replace("median", str(combined_data_frame[eval_var].median()))
+        filter = filter.replace("mean", str(combined_data_frame[eval_var].mean()))
+        filter = filter.replace("lower_quartile", str(combined_data_frame[eval_var].quantile(0.25)))
+        filter = filter.replace("upper_quartile", str(combined_data_frame[eval_var].quantile(0.75)))
+        
+
     filter_excluded_rows.append(~ combined_data_frame.eval(filter))
 
 combined_data_frame["excluded"] = False
@@ -211,28 +239,30 @@ lops.save_as_nifti (voxel_mask.astype(float), map_affine, os.path.join(output_di
     
 # save training features and targets
 
-training_feature_vecotrs = included_lesion_maps[lesion_mostly_in_mask][:, voxel_mask]
+training_feature_vectors = included_lesion_maps[lesion_mostly_in_mask][:, voxel_mask]
+feature_coordinates = np.asarray(np.nonzero(voxel_mask)).T
+
+do_lesion_volume_control = lesion_map_settings["do_volume_control"]
+
+if(do_lesion_volume_control):
+    training_feature_vectors *= 1 / np.sqrt(np.sum(training_feature_vectors, axis=1)).reshape(-1,1)
+
+    assert (np.all(np.isclose(np.linalg.norm(training_feature_vectors, axis=1), 1)))
+
 training_targets = np.asarray(combined_data_frame.query("lesion_mostly_in_mask == True")[prediction_target_variable])
 
 training_setup = {
     "analysis_tag": analysis_tag,
     "rng_seed": settings["rng_seed"],
-    "features": training_feature_vecotrs,
+    "features": training_feature_vectors,
+    "feature_coordinates": feature_coordinates,
     "targets": training_targets,
     "prediction_type": prediction_type,
     "prediction_positive_category": prediction_positive_category,
     "parameters": settings["training_parameters"],
-}
-
-permutation_setup =  {
-    "analysis_tag": analysis_tag,
-    "rng_seed": settings["rng_seed"],
     "n_permutations": settings["training_parameters"]["n_permutations"],
-    "n_samples": len(training_targets),
 }
 
 
 with open(os.path.join(sub_run_directory, f"{analysis_tag}_training_data_setup.pkl"), "wb") as f:
     pkl.dump(training_setup, f)
-with open(os.path.join(run_directory, f"{analysis_tag}_permutation_setup.pkl"), "wb") as f:
-    pkl.dump(permutation_setup, f)
