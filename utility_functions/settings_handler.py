@@ -54,6 +54,7 @@ def setup_settings(tag=None, path=None):
 
     settings_dict = {
         "cfg_tag": tag,
+        "rng_seed": 0,
         "variable_selection":{
             "prediction_target": "",
             "sample_id": "",

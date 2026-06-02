@@ -172,7 +172,7 @@ def data_remap_categorical_variables(column_name, unique_values: list, mapping_o
 
     return remapping
 
-class generic_number_prompt_ui():
+class generic_number_prompt_ui:
     def __init__(self, title, text, number_out):
         self.number_out = number_out
         
@@ -209,6 +209,43 @@ def settings_get_number_variables():
     number_out = {"num": 0}
     generic_number_prompt_ui("Number of Variable", "How many variables do you want to set up?", number_out)
     return number_out["num"]
+
+class generic_list_item_selection:
+    def __init__(self, title, text, selection_options, selection_out):
+        self.selection_out = selection_out
+        
+        self.root = tk.Tk()
+
+        self.root.title(title)
+
+        self.frame = ttk.Frame(self.root)
+        self.frame.pack()
+
+        self.prompt_label = ttk.Label(self.frame, text=text)
+        self.prompt_label.pack()
+
+        self.selected_item = tk.StringVar()
+
+        self.radio_button_frame = ttk.Frame(self.frame)
+        self.radio_button_frame.pack()
+
+        for option in selection_options:
+            radiobutton = ttk.Radiobutton(self.radio_button_frame, text=str(option), variable=self.selected_item, value=str(option))
+            radiobutton.pack(side='left')
+
+        self.submit_button = ttk.Button(self.frame, command=self.submit, text="Submit")
+        self.submit_button.pack()
+
+        self.root.mainloop()
+    
+    def submit(self):
+        self.selection_out["selection"] = self.selected_item.get()
+        self.root.destroy()
+
+def data_choose_positive_category_ui(selection_options):
+    selection_out = {"selection": None}
+    generic_list_item_selection("Choose Prediction Target", 'Which category is the "positive" prediction?', selection_options, selection_out)
+    return selection_out["selection"]
 
 class settings_variable_setup_ui:
     def __init__(self, variable_dict):
