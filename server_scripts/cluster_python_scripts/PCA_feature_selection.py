@@ -24,6 +24,7 @@ new_features = selections.fit_transform(predictive_features, prediction_targets)
 
 new_training_setup = copy.deepcopy(training_setup)
 
+new_training_setup["analysis_tag"] = "pca_" + training_setup["analysis_tag"]
 new_training_setup["features"] = new_features
 new_training_setup["feature_coordinates"] = None
 

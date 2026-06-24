@@ -31,6 +31,10 @@ permutation_setup_file_name = sys.argv[2]
 with open(permutation_setup_file_name, "rb") as f:
     permutation_setup = pkl.load(f)
 
+output_folder = os.path.join(os.path.dirname(training_setup_file_name), "output")
+if not os.path.isdir(output_folder):
+    os.mkdir(output_folder)
+
 training_parameters = training_setup["parameters"]
 
 prediction_target_variable_type = training_setup["prediction_type"]
@@ -83,7 +87,7 @@ permutation_indices = permutation_setup["permutations_indices"]
 
 do_hypa_optimisation = True
 c_param = 0.0001
-possible_c_params = [0.0001, 0.0001, 0.001, 0.01, 0.1, 1, 10, 100, 1000]
+possible_c_params = [0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 10, 100, 1000]
 param_grid = {"C": possible_c_params}
 
 if do_hypa_optimisation:
@@ -97,13 +101,14 @@ if(isCategoricalPrediction):
     pipeline_steps.append(imbus.RandomUnderSampler(random_state=random_generator.integers(0, 2**32 - 1)))
 
     estimator = svm.LinearSVC(max_iter=2000)
-    scorer = metrics.make_scorer(metrics.f1_score, pos_label=prediction_positive_category)
-    #scorer = metrics.get_scorer("accuracy")
+    #scorer = metrics.make_scorer(metrics.f1_score, pos_label=prediction_positive_category)
+    scorer = metrics.get_scorer("accuracy")
     
     estimator_name = "linearsvc"
 else:
     estimator = svm.LinearSVR(verbose=max(0, verbose-1))
-    scorer = metrics.get_scorer("r2")
+    #scorer = metrics.get_scorer("r2")
+    scorer = metrics.get_scorer("rmse")
 
     estimator_name = "linearsvr"
 
@@ -118,11 +123,11 @@ else:
 
 training_model_template = lambda: pl.make_pipeline(*(pipeline_steps + [copy.deepcopy(estimator_step)]))
 
-permutation_intercepts = np.zeros((n_permutations, n_samples))
-permutation_coefficients = np.zeros((n_permutations, n_samples, n_features))
+permutation_intercepts = np.zeros(n_permutations)
+permutation_coefficients = np.zeros((n_permutations, n_features))
 permutation_mean_metrics = {}
 for metric in selected_metrics:
-    permutation_mean_metrics[metric] = []
+    permutation_mean_metrics[metric] = np.zeros(n_permutations)
 
 # split generator
 for i, permutation_shuffle in enumerate(permutation_indices):
@@ -184,10 +189,6 @@ for i, permutation_shuffle in enumerate(permutation_indices):
                 model_cv_metrics[metric][j] = metrics.root_mean_squared_error(inner_test_labels, inner_model_prediction)
                 continue
 
-        
-
-        if verbose:
-            print(f"Fold {i+1}: Trained in {time.time() - split_start_time:.1f} seconds. {'; '.join([f'{metric}: {model_cv_metrics[metric][i]:.2%}' for metric in selected_metrics])}")
 
 
     if do_hypa_optimisation:
@@ -205,32 +206,34 @@ for i, permutation_shuffle in enumerate(permutation_indices):
     # averaging metrics over the cross validation loops and saving for each iteration
     mean_model_metrics = [model_cv_metrics[metric].mean() for metric in selected_metrics]
 
-    print(f"Training complete. {'; '.join([f'mean {metric}: {mean_model_metrics[i]:.2%}' for i,metric in enumerate(selected_metrics)])}")
+    print(f"Permutation {i+1}/{n_permutations} trained. {'; '.join([f'mean {metric}: {mean_model_metrics[j]:.2%}' for j, metric in enumerate(selected_metrics)])}")
 
-    ## report total training time
-
-    training_duration = time.time() - start_train_time
-
-    training_duration_seconds = int(training_duration % 60)
-    training_duration_minutes = int(training_duration % 3600 // 60)
-    training_duration_hours = int(training_duration // 3600)
-
-    print(f"training has finished in {training_duration_hours:d} hours, {training_duration_minutes:d} minutes, and {training_duration_seconds:d} seconds.")
-
-    permutation_intercepts[i] = intercept_retrained,
+    permutation_intercepts[i] = intercept_retrained
     permutation_coefficients[i] = coefficients_retrained
 
     for j, metric in enumerate(selected_metrics):
-        permutation_mean_metrics[metric].append(mean_model_metrics[j])
+        permutation_mean_metrics[metric][i] = mean_model_metrics[j]
+
+
+## report total training time
+training_duration = time.time() - start_train_time
+
+training_duration_seconds = int(training_duration % 60)
+training_duration_minutes = int(training_duration % 3600 // 60)
+training_duration_hours = int(training_duration // 3600)
+
+print(f"training has finished in {training_duration_hours:d} hours, {training_duration_minutes:d} minutes, and {training_duration_seconds:d} seconds.")
 
 ## Save results to disk as serialized dict object
 output_dict = {
+    "analysis_tag": analysis_tag,
+    "run_id": run_id,
     "permutation_intercepts": permutation_intercepts,
     "permutation_coefficients": permutation_coefficients,
     "permutation_metrics": permutation_mean_metrics
 }
 
-output_file_name = os.path.join(os.path.dirname(training_setup_file_name), "output", f"{run_id}_permutation_output.pkl")
+output_file_name = os.path.join(output_folder, f"{run_id}_permutation_output.pkl").replace("/.", "")
 print(output_file_name)
 with open(output_file_name, "wb") as f:
     pkl.dump(output_dict, f)

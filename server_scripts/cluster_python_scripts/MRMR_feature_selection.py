@@ -15,21 +15,29 @@ predictive_features = training_setup["features"]
 #predictive_features = (~ np.isclose(predictive_features, 0)).astype(float)
 prediction_targets = training_setup["targets"]    
 
-selections = fs.MRMR(method="FCD", regression=False)
+number_of_features_ratio = 0.2
+try:
+    number_of_features_ratio = float(sys.argv[2])
+except:
+    pass
+number_of_features = int(predictive_features.shape[1] * number_of_features_ratio)
+
+selections = fs.MRMR(method="FCD", regression=False, max_features=number_of_features)
 print("fitting")
-new_features = selections.fit_transform(predictive_features, prediction_targets)
+selections.fit(predictive_features, prediction_targets)
 
 new_feature_selection_mask = selections.get_support()
 
 new_training_setup = copy.deepcopy(training_setup)
 
-new_training_setup["features"] = new_features
+new_training_setup["analysis_tag"] = f"mrmr{number_of_features_ratio:.0%}_" + training_setup["analysis_tag"]
+new_training_setup["features"] = predictive_features[:, new_feature_selection_mask]
 new_training_setup["feature_coordinates"] = training_setup["feature_coordinates"][new_feature_selection_mask]
 
-new_setup_directory = os.path.dirname(setup_file_name) + "_mrmr"
+new_setup_directory = os.path.dirname(setup_file_name) + f"_mrmr{number_of_features_ratio:.0%}"
 if not os.path.isdir(new_setup_directory):
     os.makedirs(new_setup_directory)
 
-new_setup_file_name = os.path.basename(setup_file_name).replace(".pkl", "_mrmr.pkl")
+new_setup_file_name = os.path.basename(setup_file_name).replace(".pkl", f"_mrmr{number_of_features_ratio:.0%}.pkl")
 with open(os.path.join(new_setup_directory, new_setup_file_name), "wb") as f:
     pkl.dump(new_training_setup, f)
