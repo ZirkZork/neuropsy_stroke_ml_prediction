@@ -185,6 +185,13 @@ def interpolate_lesion_map (lesion_map:np.ndarray, slice_gap:int = 5, slice_axis
     return lesion_map_interpolated_threshholded
 
 
+def transform_feature_space_to_brain (feature_space_map, feature_coordinates, dimensions):
+    brain_map = np.zeros(dimensions)
+    for i, coordinate in enumerate (feature_coordinates):
+        brain_map[tuple(coordinate)] = feature_space_map[i]
+    return brain_map
+
+
 def apply_affine (coordinates:np.ndarray, affine:np.ndarray):
 
     n_coordinates = coordinates.shape[0]
