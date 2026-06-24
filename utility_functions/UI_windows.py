@@ -6,10 +6,10 @@ import tkinter as tk
 from tkinter import ttk
 import numpy as np
 import pandas as pd
-from tkinter.filedialog import askopenfilenames, askopenfilename, askdirectory
+import tkinter.filedialog as fidi
 
 class data_choose_file_paths_ui:
-    def __init__(self, file_request_dict:dict):
+    def __init__(self, file_request_dict:dict, initial_dir = None):
         self.file_request_dict = file_request_dict
         
         self.root = tk.Tk()
@@ -34,11 +34,13 @@ class data_choose_file_paths_ui:
             file_path_entry.pack(side="left")
 
             if path_type == "file":
-                get_path_command = lambda path_name = name: self.file_path_entry_texts[path_name].set(askopenfilename()) 
+                get_path_command = lambda path_name = name: self.file_path_entry_texts[path_name].set(fidi.askopenfilename(initialdir=initial_dir)) 
             elif path_type == "files":
-                get_path_command = lambda path_name = name: self.file_path_entry_texts[path_name].set("; ".join(askopenfilenames())) 
+                get_path_command = lambda path_name = name: self.file_path_entry_texts[path_name].set("; ".join(fidi.askopenfilenames(initialdir=initial_dir))) 
             elif path_type == "dir":
-                get_path_command = lambda path_name = name: self.file_path_entry_texts[path_name].set(askdirectory()) 
+                get_path_command = lambda path_name = name: self.file_path_entry_texts[path_name].set(fidi.askdirectory(initialdir=initial_dir)) 
+            elif path_type == "save_file":
+                get_path_command = lambda path_name = name: self.file_path_entry_texts[path_name].set(fidi.asksaveasfilename(initialdir=initial_dir)) 
             else:
                 raise Exception("neither file nor dir path requested.")
 
@@ -55,9 +57,9 @@ class data_choose_file_paths_ui:
             self.file_request_dict[name] = self.file_path_entry_texts[name].get()
         self.root.destroy()
 
-def data_choose_file_paths(file_request_dict:dict):
+def data_choose_file_paths(file_request_dict:dict, initial_dir = None):
 
-    data_choose_file_paths_ui(file_request_dict)
+    data_choose_file_paths_ui(file_request_dict, initial_dir = initial_dir)
 
     return file_request_dict
 
@@ -246,6 +248,43 @@ def data_choose_positive_category_ui(selection_options):
     selection_out = {"selection": None}
     generic_list_item_selection("Choose Prediction Target", 'Which category is the "positive" prediction?', selection_options, selection_out)
     return selection_out["selection"]
+
+class generic_list_items_selection:
+    def __init__(self, title, text, selection_options, selection_out):
+        self.selection_out = selection_out
+        
+        self.root = tk.Tk()
+
+        self.root.title(title)
+
+        self.frame = ttk.Frame(self.root)
+        self.frame.pack()
+
+        self.prompt_label = ttk.Label(self.frame, text=text)
+        self.prompt_label.pack()
+
+        self.check_button_frame = ttk.Frame(self.frame)
+        self.check_button_frame.pack()
+
+        self.option_checks = []
+        for option in selection_options:
+            option_var = tk.StringVar()
+            ttk.Checkbutton(self.check_button_frame, text=str(option), variable=option_var, onvalue=str(option), offvalue=None).pack()
+            self.option_checks.append(option_var)
+
+        self.submit_button = ttk.Button(self.frame, command=self.submit, text="Submit")
+        self.submit_button.pack()
+
+        self.root.mainloop()
+    
+    def submit(self):
+        self.selection_out += [option_var.get() for option_var in self.option_checks]
+        self.root.destroy()
+
+def training_select_runs_ui(selection_options):
+    selection_out = []
+    generic_list_items_selection("Choose Runs", 'Which permutation runs should be run?', selection_options, selection_out)
+    return selection_out
 
 class settings_variable_setup_ui:
     def __init__(self, variable_dict):
