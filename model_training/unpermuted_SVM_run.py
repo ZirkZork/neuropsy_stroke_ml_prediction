@@ -34,6 +34,12 @@ prediction_target_variable_type = training_setup["prediction_type"]
 predictive_features = training_setup["features"]
 prediction_targets = training_setup["targets"]    
 
+remove_featureless_samples = True
+if remove_featureless_samples:
+    non_zero_samples = predictive_features.sum(axis=1) != 0
+    predictive_features = predictive_features[non_zero_samples]
+    prediction_targets = prediction_targets[non_zero_samples]
+
 if prediction_target_variable_type == "cat_binary":
     prediction_positive_category = training_setup["prediction_positive_category"]
     prediction_negative_category = [var for var in np.unique(prediction_targets) if var != prediction_positive_category].pop()
@@ -94,9 +100,9 @@ predictions[:,:] = np.nan
 
 cycle_start_time = time.time()
 
-do_hypa_optimisation = True
+do_hypa_optimisation = False
 c_param = 0.0001
-possible_c_params = [0.0001, 0.0001, 0.001, 0.01, 0.1, 1, 10, 100, 1000]
+possible_c_params = [0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 10, 100, 1000]
 param_grid = {"C": possible_c_params}
 
 if do_hypa_optimisation:
@@ -110,13 +116,14 @@ if(isCategoricalPrediction):
     pipeline_steps.append(imbus.RandomUnderSampler(random_state=random_generator.integers(0, 2**32 - 1)))
 
     estimator = svm.LinearSVC(max_iter=2000)
-    scorer = metrics.make_scorer(metrics.f1_score, pos_label=prediction_positive_category)
-    #scorer = metrics.get_scorer("accuracy")
+    #scorer = metrics.make_scorer(metrics.f1_score, pos_label=prediction_positive_category)
+    scorer = metrics.get_scorer("accuracy")
     
     estimator_name = "linearsvc"
 else:
     estimator = svm.LinearSVR(verbose=max(0, verbose-1))
-    scorer = metrics.get_scorer("r2")
+    #scorer = metrics.get_scorer("r2")
+    scorer = metrics.get_scorer("neg_root_mean_squared_error")
 
     estimator_name = "linearsvr"
 
@@ -189,8 +196,6 @@ for i, (training_samples_indices, test_samples_indices) in enumerate(split_gener
             model_cv_metrics[metric][i] = metrics.root_mean_squared_error(inner_test_labels, inner_model_prediction)
             continue
 
-    
-
     if verbose:
         print(f"Fold {i+1}: Trained in {time.time() - split_start_time:.1f} seconds. {"; ".join([f"{metric}: {model_cv_metrics[metric][i]:.2f}" for metric in selected_metrics])}")
 
@@ -212,7 +217,7 @@ coefficients_retrained = retrained_estimator.coef_.flatten()
 # averaging metrics over the cross validation loops and saving for each iteration
 mean_model_metrics = [model_cv_metrics[metric].mean() for metric in selected_metrics]
 
-print(f"Training complete. {"; ".join([f"mean {metric}: {mean_model_metrics[i]:.2f}" for i,metric in enumerate(selected_metrics)])}")
+print(f"Training complete. {"; ".join([f"mean {metric}: {mean_model_metrics[i]:.3f}" for i,metric in enumerate(selected_metrics)])}")
 
 ## report total training time
 
@@ -225,14 +230,16 @@ training_duration_hours = int(training_duration // 3600)
 print(f"training has finished in {training_duration_hours:d} hours, {training_duration_minutes:d} minutes, and {training_duration_seconds:d} seconds.")
 
 output_dict = {
+    "analysis_tag": analysis_tag,
     "intercept": intercept_retrained,
     "coeficients": coefficients_retrained,
     "predictions": predictions,
-    "metrics": mean_model_metrics
+    "best_c_params": c_params,
+    "metrics": {}
 }
 
 for i,metric in enumerate(selected_metrics):
-    output_dict[metric] = mean_model_metrics[i]
+    output_dict["metrics"][metric] = mean_model_metrics[i]
 
 ## Save results to disk as serialized dict object
 output_dir = os.path.join(os.path.dirname(setup_file_name), "output")

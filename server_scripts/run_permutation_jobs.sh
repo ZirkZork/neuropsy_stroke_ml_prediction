@@ -14,8 +14,8 @@ data_dir=/data/project/inm3_svm/data/
 printf "# The environment
 universe       = vanilla
 getenv         = True
-request_cpus   = 1
-request_memory = 2G
+request_cpus   = 4
+request_memory = 24G
 
 # Execution
 initial_dir    = /data/project/inm3_svm/server_scripts/cluster_python_scripts

@@ -11,7 +11,7 @@ printf "
 universe       = vanilla
 getenv         = True
 request_cpus   = 1
-request_memory = 2G
+request_memory = 10G
 
 # Execution
 initial_dir    = /data/project/inm3_svm/server_scripts/cluster_python_scripts

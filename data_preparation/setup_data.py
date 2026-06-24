@@ -11,7 +11,6 @@ from utility_functions import lesion_operations as lops
 import numpy as np
 import pandas as pd
 import pickle as pkl
-from tkinter.filedialog import asksaveasfile, asksaveasfilename, askopenfilenames, askdirectory
 
 filepath_dict = {
     "settings": "file",
@@ -169,7 +168,6 @@ for filter in filter_variables:
         filter = filter.replace("lower_quartile", str(combined_data_frame[eval_var].quantile(0.25)))
         filter = filter.replace("upper_quartile", str(combined_data_frame[eval_var].quantile(0.75)))
         
-
     filter_excluded_rows.append(~ combined_data_frame.eval(filter))
 
 combined_data_frame["excluded"] = False
@@ -255,6 +253,8 @@ training_setup = {
     "analysis_tag": analysis_tag,
     "rng_seed": settings["rng_seed"],
     "features": training_feature_vectors,
+    "brain_dimensions": map_dimensions,
+    "brain_affine": map_affine,
     "feature_coordinates": feature_coordinates,
     "targets": training_targets,
     "prediction_type": prediction_type,

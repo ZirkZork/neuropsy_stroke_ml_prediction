@@ -3,7 +3,10 @@
 
 import os
 import re
+import sys
 from tkinter.filedialog import askdirectory
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from utility_functions import UI_windows as uiiai
 
 input_folder = askdirectory()
 
@@ -25,10 +28,11 @@ for path, subdirs, files in os.walk(input_folder):
             run_lists[run_id] = os.path.join(path, file_name)
 
 found_run_ids = [id for id in setup_files.keys() if id in run_lists.keys()]
+selected_run_ids = uiiai.training_select_runs_ui(found_run_ids)
 
 with open(os.path.join(input_folder, "runlist.csv"), "w") as f:
     f.write(",".join(["setup_file", "run_split_list"]))
     f.write("\n")
-    for id in found_run_ids:
+    for id in selected_run_ids:
         f.write(",".join([setup_files[id].replace(input_folder, "."), run_lists[id].replace(input_folder, ".")]))
         f.write("\n")
