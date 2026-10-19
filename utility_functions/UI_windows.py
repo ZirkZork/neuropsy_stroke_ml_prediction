@@ -201,15 +201,24 @@ class generic_number_prompt_ui:
         self.root.mainloop()
 
     def number_entry_validation(self, P):
-        return str.isdigit(P) or P == ""
+        return str.isdigit(P.replace(".", "", 1)) or P == ""
     
     def submit(self):
-        self.number_out["num"] = int(self.entered_number.get())
+        try:
+            self.number_out["num"] = int(self.entered_number.get())
+        except:
+            self.number_out["num"] = float(self.entered_number.get())
+
         self.root.destroy()
 
 def settings_get_number_variables():
     number_out = {"num": 0}
     generic_number_prompt_ui("Number of Variable", "How many variables do you want to set up?", number_out)
+    return number_out["num"]
+
+def generic_get_number(title, text):
+    number_out = {"num": 0}
+    generic_number_prompt_ui(title, text, number_out)
     return number_out["num"]
 
 class generic_list_item_selection:
@@ -278,12 +287,17 @@ class generic_list_items_selection:
         self.root.mainloop()
     
     def submit(self):
-        self.selection_out += [option_var.get() for option_var in self.option_checks]
+        self.selection_out += [option_var.get() for option_var in self.option_checks if option_var.get() != ""]
         self.root.destroy()
 
 def training_select_runs_ui(selection_options):
     selection_out = []
     generic_list_items_selection("Choose Runs", 'Which permutation runs should be run?', selection_options, selection_out)
+    return selection_out
+
+def data_select_demo_variables(selection_options):
+    selection_out = []
+    generic_list_items_selection("Select variables", 'Choose demographic variables to get statistics for:', selection_options, selection_out)
     return selection_out
 
 class settings_variable_setup_ui:

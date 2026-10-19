@@ -3,17 +3,28 @@
 # -*- coding: utf-8 -*-
 
 import os
+import sys
 import pickle as pkl
 
 import numpy as np
 
 from tkinter.filedialog import askopenfilename, askdirectory
 from tkinter.simpledialog import askinteger
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from utility_functions import UI_windows as uiiai
 
 setup_file_name = askopenfilename()
 with open(setup_file_name, "rb") as f:
     permutation_setup = pkl.load(f)
 
+try:
+    unpermuted_results_file_name = askopenfilename()
+    with open(unpermuted_results_file_name, "rb") as f:
+        unpermuted_results = pkl.load(f)
+    best_c_param = unpermuted_results["selected_c_param"]
+except:
+    best_c_param = uiiai.generic_get_number("c parameter", "Choose a c parameter for the permutations.")
+    
 analysis_tag = permutation_setup["analysis_tag"]
 
 n_permutations = permutation_setup["n_permutations"]
@@ -49,6 +60,7 @@ with open(os.path.join(output_folder, f"split_list_{analysis_tag}.csv"), "w") as
         split_svm_permutation_setup_dict = {
             "run_id": split_id,
             "permutations_indices": permutation_fraction,
+            "c_param": best_c_param
         }
 
         with open(os.path.join(output_folder, split_file_name), "wb") as f_:

@@ -17,7 +17,6 @@ filepath_dict = {
     "unpermuted_training_output": "file",
     "permutation_split_list": "file",
     "permutation_training_outputs": "files",
-    "output_folder": "dir"
 }
 
 filepath_dict = uiiai.data_choose_file_paths(filepath_dict)
@@ -35,7 +34,7 @@ with open(unpermuted_output_file_name, "rb") as f:
 assert unpermuted_output["analysis_tag"] == analysis_tag
 
 unpermuted_intercept = unpermuted_output["intercept"]
-unpermuted_coefficients = unpermuted_output["coefficients"]
+unpermuted_coefficients = unpermuted_output["coeficients"]
 unpermuted_metrics = unpermuted_output["metrics"]
 
 selected_metrics = unpermuted_metrics.keys()
@@ -53,16 +52,16 @@ permutation_metrics = {}
 for metric in selected_metrics:
     permutation_metrics[metric] = np.zeros(n_permutations)
 
-permuted_output_file_names = filepath_dict["permutation_training_outputs"]
+permuted_output_file_names = filepath_dict["permutation_training_outputs"].split("; ")
 for file_name in permuted_output_file_names:
     with open(file_name, "rb") as f:
         permutation_split_output = pkl.load(f)
         assert permutation_split_output["analysis_tag"] == analysis_tag
 
-        split_id = permutation_split_output["split_id"]
-        split_row = permutation_split_list.query("split_id == @split_id")
+        split_id = permutation_split_output["run_id"]
+        split_row = permutation_split_list.query("split_id == @split_id").iloc[0]
 
-        start_index = split_row["start_index"]        
+        start_index = split_row["start_index"]
         end_index = split_row["end_index"]
 
         permutation_intercepts[start_index:end_index] = permutation_split_output["permutation_intercepts"]        
@@ -87,6 +86,9 @@ comprehensive_output = {
     "feature_coordinates": training_setup["feature_coordinates"],
 }
 
-output_file_name = os.path.join(filepath_dict["output_folder"], f"{analysis_tag}_comprehensive_output.pkl")
+#output_folder = filepath_dict["output_folder"]
+output_folder = os.path.dirname(unpermuted_output_file_name)
+
+output_file_name = os.path.join(output_folder, f"{analysis_tag}_comprehensive_output.pkl")
 with open(output_file_name, "wb") as f:
     pkl.dump(comprehensive_output, f)

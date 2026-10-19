@@ -31,17 +31,19 @@ filepath_dict = {
 filepath_dict = uiiai.data_choose_file_paths(filepath_dict)
 
 settings_path = filepath_dict["settings"]
-settings = seth.load_settings(settings_path)
+settings = seth.load_settings(settings_path)["retraining"]
 
 retrain_alpha_cutoffs = settings["retrain_alpha_cutoffs"]
 retrain_mask_overlap_cutoff = settings["retrain_mask_overlap_cutoff"]
 
 ## settings
-results_file_name = filepath_dict["settings"]
+results_file_name = filepath_dict["result_file"]
 with open(results_file_name, "rb") as f:
     results = pkl.load(f)
 
-feature_pvalues = results["feature_pvalues"]
+voxel_by_permutation = np.abs(results["unpermuted_coefficients"]) <= np.abs(results["permutation_coefficients"])
+                                  
+feature_pvalues = np.sum(voxel_by_permutation, axis=0) / 10001
 
 setup_file_name = filepath_dict["setup_file"]
 with open(setup_file_name, "rb") as f:
@@ -73,18 +75,18 @@ for cutoff in retrain_alpha_cutoffs:
     loaded_data_frame_run_copy[["lesion_voxels_in_mask", "lesion_in_mask_proportion", "mask_covered_proportion", "lesion_mostly_in_mask"]] = pd.NA
 
     included_features = feature_pvalues <= cutoff
-    lesion_voxels_in_mask = predictive_features[included_features].sum(axis=1)
+    lesion_voxels_in_mask = predictive_features[:, included_features].sum(axis=1)
 
     loaded_data_frame_run_copy.loc[feature_rows, "lesion_voxels_in_mask"] = lesion_voxels_in_mask
     loaded_data_frame_run_copy.loc[feature_rows, "lesion_in_mask_proportion"] = lesion_voxels_in_mask / loaded_data_frame_run_copy.loc[feature_rows, "lesion_size"]
     loaded_data_frame_run_copy.loc[feature_rows, "mask_covered_proportion"] = lesion_voxels_in_mask / sum(included_features)
 
-    lesion_mostly_in_mask = loaded_data_frame.loc[feature_rows, "lesion_in_mask_proportion"] >= retrain_mask_overlap_cutoff
+    lesion_mostly_in_mask = np.asarray(loaded_data_frame.loc[feature_rows, "lesion_in_mask_proportion"] >= retrain_mask_overlap_cutoff)
 
 
-    loaded_data_frame.loc[included_rows, "lesion_mostly_in_mask"] = lesion_mostly_in_mask
+    loaded_data_frame.loc[feature_rows, "lesion_mostly_in_mask"] = lesion_mostly_in_mask.astype(float)
 
-    new_predictive_features = predictive_features[lesion_mostly_in_mask, included_features]   
+    new_predictive_features = predictive_features[lesion_mostly_in_mask][:, included_features]   
     new_prediction_targets = prediction_targets[lesion_mostly_in_mask]
 
     new_training_setup = training_setup.copy()

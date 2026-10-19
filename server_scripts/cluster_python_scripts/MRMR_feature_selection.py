@@ -34,7 +34,7 @@ new_training_setup["analysis_tag"] = f"mrmr{number_of_features_ratio:.0%}_" + tr
 new_training_setup["features"] = predictive_features[:, new_feature_selection_mask]
 new_training_setup["feature_coordinates"] = training_setup["feature_coordinates"][new_feature_selection_mask]
 
-new_setup_directory = os.path.dirname(setup_file_name) + f"_mrmr{number_of_features_ratio:.0%}"
+new_setup_directory = os.path.dirname(setup_file_name) + f"_mrmr{number_of_features_ratio:.0%}".replace("%", "percent")
 if not os.path.isdir(new_setup_directory):
     os.makedirs(new_setup_directory)
 

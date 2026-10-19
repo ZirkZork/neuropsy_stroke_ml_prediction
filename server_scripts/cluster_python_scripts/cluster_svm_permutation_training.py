@@ -85,8 +85,14 @@ if prediction_target_variable_type == "num":
 ## cross validation setup
 permutation_indices = permutation_setup["permutations_indices"]
 
-do_hypa_optimisation = True
-c_param = 0.0001
+do_hypa_optimisation = False
+c_param = 0.01
+
+try:
+    c_param = permutation_setup["c_param"]
+except:
+    pass
+
 possible_c_params = [0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 10, 100, 1000]
 param_grid = {"C": possible_c_params}
 

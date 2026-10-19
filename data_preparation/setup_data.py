@@ -36,7 +36,7 @@ data_input_files = filepath_dict["data_files"].split("; ")
 combine_datasets = True
 
 if(len(data_input_files) == 1):
-    single_data_file_frame = pd.read_excel(data_input_files.pop())
+    single_data_file_frame = pd.read_excel(data_input_files[-1])
     if np.all([var in single_data_file_frame.columns for var in variable_names]):
         combine_datasets = False
         combined_data_frame = single_data_file_frame
@@ -109,7 +109,7 @@ for var in variables:
             fill_in_values = combined_data_frame.loc[missing_rows].eval(formular)
 
             # if variable is a time intervall either convert to whole days or years
-            if fill_in_values.dtype == 'timedelta64[ns]':
+            if pd.api.types.is_timedelta64_dtype(fill_in_values):
                 if var["unit"].lower() in ["day", "days", "d"]:
                     fill_in_values = fill_in_values.dt.days
                 elif var["unit"].lower() in ["year", "years", "y"]:

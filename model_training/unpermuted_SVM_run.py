@@ -60,6 +60,12 @@ n_samples, n_features = predictive_features.shape
 
 print (f"loaded {n_samples} samples, with {n_features} features.")
 
+# center data so we can use a zero intercept
+no_intercept = False
+if no_intercept:
+    predictive_features = predictive_features - predictive_features.mean(axis=0)
+
+
 sample_prediction_tracker = np.zeros(n_samples)
 
 ## training cycles
@@ -100,8 +106,8 @@ predictions[:,:] = np.nan
 
 cycle_start_time = time.time()
 
-do_hypa_optimisation = False
-c_param = 0.0001
+do_hypa_optimisation = True
+c_param = 0.01
 possible_c_params = [0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 10, 100, 1000]
 param_grid = {"C": possible_c_params}
 
@@ -115,9 +121,9 @@ pipeline_steps = []
 if(isCategoricalPrediction):
     pipeline_steps.append(imbus.RandomUnderSampler(random_state=random_generator.integers(0, 2**32 - 1)))
 
-    estimator = svm.LinearSVC(max_iter=2000)
-    #scorer = metrics.make_scorer(metrics.f1_score, pos_label=prediction_positive_category)
-    scorer = metrics.get_scorer("accuracy")
+    estimator = svm.LinearSVC(max_iter=2000, fit_intercept= not no_intercept)
+    scorer = metrics.make_scorer(metrics.f1_score, pos_label=prediction_positive_category)
+    #scorer = metrics.get_scorer("accuracy")
     
     estimator_name = "linearsvc"
 else:
@@ -138,7 +144,7 @@ else:
 
 training_model_template = lambda: pl.make_pipeline(*(pipeline_steps + [copy.deepcopy(estimator_step)]))
 
-c_params = np.zeros(n_splits)
+c_params = np.ones(n_splits) * c_param
 
 ## cross validation loop
 for i, (training_samples_indices, test_samples_indices) in enumerate(split_generator.split(predictive_features, prediction_targets)):
@@ -202,16 +208,19 @@ for i, (training_samples_indices, test_samples_indices) in enumerate(split_gener
 ## retraining the classifier on the whole dataset
 
 # pipeline for balancing (undersampling) and classifier training
-if do_hypa_optimisation:
-    cs, counts = np.unique(c_params, return_counts=True)
-    estimator.C = cs[np.argmax(counts)]
+cs, counts = np.unique(c_params, return_counts=True)
+best_c = cs[np.argmax(counts)]
+estimator.C = best_c
 retraining_model = pl.make_pipeline(*(pipeline_steps + [copy.deepcopy(estimator)]))
 
 retraining_model.fit(predictive_features, prediction_targets)    
 
 # get intercept and coeficients of trained classifier from the pipeline
 retrained_estimator = retraining_model.named_steps[original_estimator_name]
-intercept_retrained = retrained_estimator.intercept_[0]
+try:
+    intercept_retrained = retrained_estimator.intercept_[0]
+except:
+    intercept_retrained = retrained_estimator.intercept_
 coefficients_retrained = retrained_estimator.coef_.flatten()
 
 # averaging metrics over the cross validation loops and saving for each iteration
@@ -235,6 +244,7 @@ output_dict = {
     "coeficients": coefficients_retrained,
     "predictions": predictions,
     "best_c_params": c_params,
+    "selected_c_param": best_c,
     "metrics": {}
 }
 
